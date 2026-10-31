@@ -48,6 +48,7 @@ print(result.summary)
 - `elevator_sim/scheduler.py`: the three assignment strategies.
 - `elevator_sim/simulation.py`: the tick loop, input checks, and summary stats.
 - `elevator_sim/io.py` and `elevator_sim/__main__.py`: CSV input and output, and the CLI.
+- `AGENTS.md`: commands, layout, invariants, and conventions for AI coding agents working in this repo.
 
 ## How a tick works
 
