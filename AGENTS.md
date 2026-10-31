@@ -9,6 +9,7 @@ python3 -m pip install pytest ruff                      # one-time setup
 python3 -m pytest                                       # tests, must pass
 ruff check .                                            # lint, must pass
 python3 -m elevator_sim scenarios/sample.csv --elevators 2
+python3 -m elevator_sim.plot positions.csv
 python3 -m elevator_sim scenarios/morning_rush.csv --compare
 ```
 
@@ -18,6 +19,7 @@ python3 -m elevator_sim scenarios/morning_rush.csv --compare
 - `elevator_sim/scheduler.py`: assignment strategies. A scheduler is any object with `assign(request, elevators, now) -> Elevator`.
 - `elevator_sim/simulation.py`: tick loop, request validation, summary stats.
 - `elevator_sim/io.py`, `elevator_sim/__main__.py`: CSV in and out, CLI.
+- `elevator_sim/plot.py`: HTML replay of a position log. Standard library only.
 - `scenarios/`: input CSVs and a seeded workload generator.
 - `tests/`: pytest. Sample timings are asserted exactly, so behavior changes show up here.
 

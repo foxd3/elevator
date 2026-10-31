@@ -10,6 +10,9 @@ Python 3.10 or newer. The simulation uses only the standard library. Tests need 
 # The sample from the brief
 python3 -m elevator_sim scenarios/sample.csv --elevators 2 --floors 51 --capacity 8
 
+# Replay the position log in a browser (writes positions.html)
+python3 -m elevator_sim.plot positions.csv
+
 # A 300-passenger morning rush, comparing all three schedulers
 python3 -m elevator_sim scenarios/morning_rush.csv --elevators 3 --compare
 
@@ -28,7 +31,7 @@ python3 -m pytest
 | `--positions` | `positions.csv` | Where the position log is written |
 | `--compare` | off | Run every scheduler and print a table |
 
-The position log has one row per tick, starting at 0: `time,elevator_1,elevator_2,...`. The summary prints min, max, and average wait and total time. It also prints the median and 95th-percentile total time, how many passengers waited 0, the passenger who waited longest, and how many passengers each car carried.
+The position log has one row per tick, starting at 0: `time,elevator_1,elevator_2,...`. `python3 -m elevator_sim.plot` turns that log into one HTML file (standard library only) with play, pause, a speed control, and a time slider. The summary prints min, max, and average wait and total time. It also prints the median and 95th-percentile total time, how many passengers waited 0, the passenger who waited longest, and how many passengers each car carried.
 
 To make a new workload, run `python3 scenarios/generate.py --passengers 500 --seed 2 > my.csv`.
 
@@ -48,6 +51,7 @@ print(result.summary)
 - `elevator_sim/scheduler.py`: the three assignment strategies.
 - `elevator_sim/simulation.py`: the tick loop, input checks, and summary stats.
 - `elevator_sim/io.py` and `elevator_sim/__main__.py`: CSV input and output, and the CLI.
+- `elevator_sim/plot.py`: browser replay of a position log.
 - `AGENTS.md`: commands, layout, invariants, and conventions for AI coding agents working in this repo.
 
 ## How a tick works
@@ -124,7 +128,6 @@ What this shows:
 - Door dwell time, for example 1 tick per stop. It would go in `Elevator.step`, and the scheduler would account for it automatically.
 - Express or zoned cars. An `Elevator.serves(floor)` check would gate `board`, `has_stop`, and the scheduler.
 - A fairness knob in the cost function, and a sweep showing the trade-off between average and maximum wait.
-- An animated plot of `positions.csv` for the walkthrough.
 
 ## Time spent
 
