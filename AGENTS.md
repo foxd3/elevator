@@ -26,6 +26,7 @@ python3 -m elevator_sim scenarios/morning_rush.csv --compare
 - **No peeking ahead.** Requests leave the arrival queue only on their tick. Schedulers must never see future requests.
 - **Assignment is final.** Once a passenger is assigned to a car, it never changes.
 - **One tick = one floor.** Order inside a tick is: arrivals, `step` for each car, log positions, `move` for each car.
+- **Floor 1 is the ground floor, and there is no floor 0.** Basements are -1, -2, ... Never subtract floor numbers to count steps. Use `floors_between` and `floor_index` from `models.py`. `sample.csv` comes from the brief, so its timings must not change.
 - **What-if runs reuse `Elevator.step`** via `Elevator.copy()`. Never mutate real passengers or cars inside a scheduler.
 
 ## Conventions

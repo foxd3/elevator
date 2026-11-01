@@ -29,3 +29,10 @@ def test_round_robin_cycles():
     scheduler = RoundRobin()
     picks = [scheduler.assign(Request(0, str(i), 1, 2), cars, 0).id for i in range(4)]
     assert picks == [1, 2, 3, 1]
+
+
+def test_nearest_car_counts_floors_without_a_floor_zero():
+    # Floor 1 is one step from -1 and two steps from 3. A plain abs() would call both distance 2.
+    far = Elevator(id=1, capacity=8, floor=3)
+    near = Elevator(id=2, capacity=8, floor=-1)
+    assert NearestCar().assign(Request(0, "p", 1, 5), [far, near], 0) is near

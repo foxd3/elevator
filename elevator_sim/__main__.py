@@ -2,6 +2,7 @@ import argparse
 import sys
 
 from elevator_sim.io import format_summary, read_requests, write_positions
+from elevator_sim.models import GROUND_FLOOR
 from elevator_sim.scheduler import SCHEDULERS
 from elevator_sim.simulation import MAX_ELEVATORS, simulate
 
@@ -13,7 +14,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("input", help="CSV of time,id,source,dest")
     parser.add_argument("--elevators", type=int, default=3)
     parser.add_argument("--max-elevators", type=int, default=MAX_ELEVATORS, help="upper limit on --elevators")
-    parser.add_argument("--floors", type=int, default=51)
+    parser.add_argument("--max-floor", type=int, default=51, help="top floor")
+    parser.add_argument(
+        "--min-floor", type=int, default=GROUND_FLOOR, help="bottom floor; negative adds basements (no 0)"
+    )
     parser.add_argument("--capacity", type=int, default=8)
     parser.add_argument("--scheduler", choices=SCHEDULERS, default="least_added_time")
     parser.add_argument("--positions", default="positions.csv", help="where to write the position log")
@@ -22,8 +26,8 @@ def main(argv: list[str] | None = None) -> int:
 
     def run(scheduler):
         return simulate(
-            requests, args.elevators, args.floors, args.capacity, scheduler,
-            max_elevators=args.max_elevators,
+            requests, args.elevators, args.max_floor, args.capacity, scheduler,
+            max_elevators=args.max_elevators, min_floor=args.min_floor,
         )
 
     try:

@@ -8,7 +8,7 @@ Python 3.10 or newer. The simulation uses only the standard library. Tests need 
 
 ```bash
 # The sample from the brief
-python3 -m elevator_sim scenarios/sample.csv --elevators 2 --floors 51 --capacity 8
+python3 -m elevator_sim scenarios/sample.csv --elevators 2 --max-floor 51 --capacity 8
 
 # A 300-passenger morning rush, comparing all three schedulers
 python3 -m elevator_sim scenarios/morning_rush.csv --elevators 3 --compare
@@ -22,7 +22,8 @@ python3 -m pytest
 | --- | --- | --- |
 | `--elevators` | 3 | Number of cars, from 1 to `--max-elevators` |
 | `--max-elevators` | 10 | Upper limit on cars. 10 is the brief's example; raise it for bigger banks |
-| `--floors` | 51 | Floors are numbered from 1 to N |
+| `--max-floor` | 51 | Top floor. 51 is the default because the brief's sample sends `passenger1` to floor 51 |
+| `--min-floor` | 1 | Bottom floor, also the ground floor. Use a negative number to add basements, for example `-2`. There is no floor 0 |
 | `--capacity` | 8 | Maximum passengers per car |
 | `--scheduler` | `least_added_time` | Also `nearest` or `round_robin` |
 | `--positions` | `positions.csv` | Where the position log is written |
@@ -38,7 +39,7 @@ From Python:
 from elevator_sim.models import Request
 from elevator_sim.simulation import simulate
 
-result = simulate([Request(0, "p1", 1, 51), Request(10, "p3", 20, 1)], elevators=2, floors=51, capacity=8)
+result = simulate([Request(0, "p1", 1, 51), Request(10, "p3", 20, 1)], elevators=2, max_floor=51, capacity=8)
 print(result.summary)
 ```
 
@@ -85,7 +86,7 @@ The baselines, `nearest` (closest car, ignoring direction and load) and `round_r
 
 ## Results
 
-Morning rush: 300 passengers over 600 ticks, 51 floors, capacity 8. 70% start at the lobby going up, 15% go back down to the lobby, and 15% travel between upper floors.
+Morning rush: 300 passengers over 600 ticks, floors 1 to 51 (`--max-floor 51`, the default, which the brief's sample requires; the workload didn't need a tower this tall), capacity 8. Floor 1 is the lobby. 70% start there going up, 15% go back down to it, and 15% travel between upper floors.
 
 | Elevators | Scheduler | Avg wait | Max wait | Avg total | p95 total | Max total |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -104,8 +105,9 @@ What this shows:
 
 ## Assumptions and simplifications
 
-- All cars start idle at floor 1. Floors are numbered from 1 to N.
-- One tick is one floor of travel. Doors open and close instantly: boarding and getting off take no extra ticks.
+- All cars start idle at floor 1, the ground floor. The building runs from `min_floor` (default 1) to `max_floor`, both inclusive. Both are floor numbers, not counts, so with `min_floor=-2` and `max_floor=50` the floors are `-2, -1, 1 ... 50`, which is 52 floors.
+- Basements are optional (`--min-floor -2`, or `min_floor=` in `simulate`). There is no floor 0, as in a real building: the floors run `-2, -1, 1, 2, ...`, so going from floor 1 to -1 is one tick, not two. `Elevator.move` and every distance calculation go through `floor_index` and `floors_between` in `models.py`, which close that gap. Comparing floors with `<` and `>` still works, because the numbering keeps its order.
+- One tick is one floor of travel, as the brief defines it. The brief says nothing about time spent at a stop, so I treat stops as free: doors open and close instantly, and every passenger who can get off or on does so on the same tick, however many there are. This is a large simplification of real elevators, where each stop costs time (doors, plus people walking in and out) and a busy stop costs more than a quiet one. See the trade-offs below.
 - Wait is `board_time - request_time`. Travel is `alight_time - board_time`. Total time is wait plus travel. Someone picked up on the tick they asked has a wait of 0.
 - Requests on the same tick are assigned in file order.
 - Assignment is final, as the brief requires. A car won't hand a passenger to another car even if things change.
@@ -117,11 +119,11 @@ What this shows:
 
 - **Efficiency versus fairness.** Least added time minimizes the sum of passenger-ticks. A strict sum can let one awkward passenger, for example someone far from every car's route, wait longer than a fairness-first rule would. Under capacity pressure, with assignment locked in, that passenger isn't strictly guaranteed to be served. The `max_ticks` guard in `simulate` exists to catch that rather than hang. To trade efficiency for fairness, add a penalty on long existing waits in `added_time`.
 - **Cost of the what-if runs.** Each assignment simulates every car to empty. That is fine at this scale: 300 passengers take under half a second. A real controller would use an analytic estimate.
-- **Instant doors.** With zero dwell time, an extra stop costs nothing. That flatters schedulers that add stops, and it is why the cost only shows up as detours.
+- **Free stops.** With zero dwell time, an extra stop costs nothing and loading 8 people costs the same as driving past. A real stop typically costs several times as long as passing a floor, so real controllers work hard to avoid unnecessary stops, such as grouping passengers who share a destination. My model can't see that benefit, because stopping is never penalized. It flatters schedulers that add stops, and it is why the cost only shows up as detours. It probably also understates how much a good scheduler gains over `nearest` and `round_robin`, since they make more stops. Destination dispatch is built around exactly this effect.
 
 ## What I'd do with more time
 
-- Door dwell time, for example 1 tick per stop. It would go in `Elevator.step`, and the scheduler would account for it automatically.
+- Realistic stop cost: a fixed door time per stop, plus a per-passenger load and unload time, so that a crowded stop takes longer than an empty one. It would go in `Elevator.step` and `move`, and the scheduler would account for it automatically because `remaining_cost` reuses `step`. This is the biggest gap between the model and a real elevator, and it would make grouping by destination valuable, which is the point of destination dispatch.
 - Express or zoned cars. An `Elevator.serves(floor)` check would gate `board`, `has_stop`, and the scheduler.
 - A fairness knob in the cost function, and a sweep showing the trade-off between average and maximum wait.
 - An animated plot of `positions.csv` for the walkthrough.
