@@ -72,8 +72,23 @@ _PAGE = """\
 const frames = __FRAMES__;
 const names = __NAMES__;
 const colors = __COLORS__;
-const maxFloor = __MAX_FLOOR__;
 const carHeight = __CAR_HEIGHT__;
+
+// Same numbering as models.floor_index: there is no floor 0, so -1 sits directly under 1.
+function floorIndex(floor) {
+  return floor > 0 ? floor : floor + 1;
+}
+function floorFromIndex(index) {
+  return index > 0 ? index : index - 1;
+}
+const seen = frames.flatMap((row) => row.slice(1));
+const minIndex = Math.min(...seen.map(floorIndex));
+const maxIndex = Math.max(...seen.map(floorIndex));
+
+function placeFrac(floor) {
+  if (maxIndex === minIndex) return 0;
+  return (floorIndex(floor) - minIndex) / (maxIndex - minIndex);
+}
 
 const bank = document.getElementById("bank");
 const ruler = document.getElementById("ruler");
@@ -101,15 +116,18 @@ const cars = names.map((name, i) => {
   return car;
 });
 
-const labelStep = maxFloor > 30 ? 10 : maxFloor > 16 ? 5 : 1;
-for (let floor = 1; floor <= maxFloor; floor++) {
+const span = maxIndex - minIndex;
+const labelStep = span > 30 ? 10 : span > 16 ? 5 : 1;
+for (let index = minIndex; index <= maxIndex; index++) {
+  const floor = floorFromIndex(index);
+  const atEnd = index === minIndex || index === maxIndex;
   const onStep = floor % labelStep === 0;
-  const crowded = floor !== maxFloor && maxFloor - floor < labelStep;
-  if (floor !== 1 && floor !== maxFloor && (!onStep || crowded)) continue;
+  const crowded = index !== maxIndex && maxIndex - index < labelStep;
+  if (!atEnd && (!onStep || crowded)) continue;
   const mark = document.createElement("div");
   mark.className = "mark";
   mark.textContent = String(floor);
-  const frac = (floor - 1) / (maxFloor - 1);
+  const frac = placeFrac(floor);
   mark.style.bottom = `calc(${frac * 100}% - ${frac * 14}px)`;
   ruler.append(mark);
 }
@@ -123,7 +141,7 @@ function show(i) {
   scrub.value = String(i);
   cars.forEach((car, c) => {
     const floor = row[c + 1];
-    const frac = (floor - 1) / (maxFloor - 1);
+    const frac = placeFrac(floor);
     car.style.bottom = `calc(${frac * 100}% - ${frac * carHeight}px)`;
     car.textContent = String(floor);
   });
@@ -164,13 +182,11 @@ show(0);
 
 def render_animation(names: list[str], positions: list[list[int]], title: str = "Elevator positions") -> str:
     """Return a self-contained HTML page that replays `positions`."""
-    highest = max(floor for row in positions for floor in row[1:])
     payload = {
         "__TITLE__": title,
         "__FRAMES__": _json(positions),
         "__NAMES__": _json(names),
         "__COLORS__": _json(CAR_COLORS),
-        "__MAX_FLOOR__": str(max(highest, 2)),
         "__CAR_HEIGHT__": str(CAR_HEIGHT_PX),
     }
     page = _PAGE

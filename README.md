@@ -32,7 +32,7 @@ python3 -m pytest
 | `--positions` | `positions.csv` | Where the position log is written |
 | `--compare` | off | Run every scheduler and print a table |
 
-The position log has one row per tick, starting at 0: `time,elevator_1,elevator_2,...`. `python3 -m elevator_sim.plot` turns that log into one HTML file (standard library only) with play, pause, a speed control, and a time slider. The summary prints min, max, and average wait and total time. It also prints the median and 95th-percentile total time, how many passengers waited 0, the passenger who waited longest, and how many passengers each car carried.
+The position log has one row per tick, starting at 0: `time,elevator_1,elevator_2,...`. `python3 -m elevator_sim.plot` turns that log into one HTML file (standard library only) with play, pause, a speed control, and a time slider. The shafts use the same floor numbering as the simulation, so floor -1 is drawn directly under floor 1. The summary prints min, max, and average wait and total time. It also prints the median and 95th-percentile total time, how many passengers waited 0, the passenger who waited longest, and how many passengers each car carried.
 
 To make a new workload, run `python3 scenarios/generate.py --passengers 500 --seed 2 > my.csv`.
 

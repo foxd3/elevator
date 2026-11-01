@@ -22,8 +22,15 @@ def test_read_positions_rejects_a_request_csv(tmp_path):
 def test_render_animation_embeds_the_log():
     html = render_animation(["elevator_1"], [[0, 1], [1, 4]])
     assert "[[0, 1], [1, 4]]" in html
-    assert "const maxFloor = 4;" in html
+    assert "function floorIndex" in html
     assert "elevator_1" in html
+
+
+def test_render_animation_puts_the_basement_next_to_the_ground_floor():
+    # Floor -1 is one step below floor 1. The page must not treat floor 0 as a real stop.
+    html = render_animation(["elevator_1"], [[0, -1], [1, 1]])
+    assert "[[0, -1], [1, 1]]" in html
+    assert "(floor - 1)" not in html
 
 
 def test_plot_cli_writes_html_next_to_the_csv(tmp_path, capsys):
