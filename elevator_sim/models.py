@@ -8,6 +8,27 @@ class Direction(Enum):
     IDLE = 0
 
 
+# The ground floor. Cars start here, and it is the default bottom of the building.
+GROUND_FLOOR = 1
+
+
+# There is no floor 0: the floors run ..., -2, -1, 1, 2, ... so going down from the ground floor
+# reaches -1 in one tick. Floor numbers keep their order, so comparisons (<, >) work as written.
+# Anything that counts steps between floors goes through floor_index, which has no gap.
+def floor_index(floor: int) -> int:
+    """Position on a gapless number line: ... -2 -> -1, -1 -> 0, 1 -> 1, 2 -> 2 ..."""
+    return floor if floor > 0 else floor + 1
+
+
+def floor_from_index(index: int) -> int:
+    return index if index > 0 else index - 1
+
+
+def floors_between(a: int, b: int) -> int:
+    """Number of one-tick steps between two floors."""
+    return abs(floor_index(a) - floor_index(b))
+
+
 @dataclass(frozen=True)
 class Request:
     time: int
@@ -47,7 +68,7 @@ class Passenger:
 class Elevator:
     id: int
     capacity: int
-    floor: int = 1
+    floor: int = GROUND_FLOOR
     direction: Direction = Direction.IDLE
     onboard: list[Passenger] = field(default_factory=list)
     pickups: list[Passenger] = field(default_factory=list)  # assigned, not yet boarded
@@ -67,7 +88,7 @@ class Elevator:
         return alighted
 
     def move(self) -> None:
-        self.floor += self.direction.value
+        self.floor = floor_from_index(floor_index(self.floor) + self.direction.value)
 
     def choose_direction(self) -> None:
         """Keep going while there is work ahead, reverse when there isn't, idle when there's nothing."""
@@ -89,7 +110,7 @@ class Elevator:
     def nearest_pickup_direction(self) -> Direction:
         if not self.pickups:
             return Direction.IDLE
-        nearest = min(self.pickups, key=lambda p: abs(p.source - self.floor))
+        nearest = min(self.pickups, key=lambda p: floors_between(p.source, self.floor))
         if nearest.source == self.floor:
             return nearest.direction
         return Direction.UP if nearest.source > self.floor else Direction.DOWN

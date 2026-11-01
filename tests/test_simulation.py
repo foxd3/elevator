@@ -12,8 +12,13 @@ from elevator_sim.simulation import simulate
 SCENARIOS = Path(__file__).resolve().parents[1] / "scenarios"
 
 
-def run(requests, elevators=1, floors=10, capacity=8, scheduler=None):
-    result = simulate(requests, elevators, floors, capacity, scheduler)
+def run(requests, elevators=1, max_floor=10, capacity=8, scheduler=None):
+    result = simulate(requests, elevators, max_floor, capacity, scheduler)
+    return result, {p.id: p for p in result.passengers}
+
+
+def run_basement(requests, max_floor=5, min_floor=-2):
+    result = simulate(requests, elevators=1, max_floor=max_floor, capacity=8, min_floor=min_floor)
     return result, {p.id: p for p in result.passengers}
 
 
@@ -45,7 +50,7 @@ def test_scheduler_only_sees_requests_that_have_arrived():
 
 def test_car_finishes_its_direction_before_picking_up_counterflow():
     # One car going up passes floor 20 at t=19, but the passenger there wants to go down.
-    _, people = run(read_requests(SCENARIOS / "direction.csv"), floors=51)
+    _, people = run(read_requests(SCENARIOS / "direction.csv"), max_floor=51)
     assert people["to37"].alight_time == 36
     assert people["to51"].alight_time == 50
     assert people["to1"].board_time == 81  # after reaching 51 and coming back down
@@ -54,7 +59,7 @@ def test_car_finishes_its_direction_before_picking_up_counterflow():
 
 def test_sample_sends_counterflow_request_to_the_idle_car():
     # At t=10 car 1 is 9 floors from floor 20 but committed upward; car 2 is idle at floor 1.
-    result, people = run(read_requests(SCENARIOS / "sample.csv"), elevators=2, floors=51)
+    result, people = run(read_requests(SCENARIOS / "sample.csv"), elevators=2, max_floor=51)
     assert people["passenger1"].elevator_id == people["passenger2"].elevator_id == 1
     assert people["passenger3"].elevator_id == 2
     assert (people["passenger3"].wait_time, people["passenger3"].travel_time) == (19, 19)
@@ -86,14 +91,14 @@ def test_full_car_drops_off_and_picks_up_on_the_same_tick():
 @pytest.mark.parametrize("name", SCHEDULERS)
 def test_every_scheduler_serves_everyone_within_the_rules(name):
     rng = random.Random(7)
-    floors, requests, t = 12, [], 0
+    max_floor, requests, t = 12, [], 0
     for i in range(60):
-        source, dest = rng.sample(range(1, floors + 1), 2)
+        source, dest = rng.sample(range(1, max_floor + 1), 2)
         requests.append(Request(t, f"p{i}", source, dest))
         t += rng.randint(0, 3)
-    result, _ = run(requests, elevators=3, floors=floors, capacity=3, scheduler=SCHEDULERS[name]())
+    result, _ = run(requests, elevators=3, max_floor=max_floor, capacity=3, scheduler=SCHEDULERS[name]())
     assert [row[0] for row in result.positions] == list(range(len(result.positions)))
-    assert all(1 <= floor <= floors for row in result.positions for floor in row[1:])
+    assert all(1 <= floor <= max_floor for row in result.positions for floor in row[1:])
     for p in result.passengers:
         assert p.alight_time is not None
         assert p.wait_time >= 0
@@ -115,8 +120,8 @@ def test_rejects_invalid_requests(request_, message):
 
 def test_elevator_limit_defaults_to_ten_and_can_be_raised():
     with pytest.raises(ValueError, match="between 1 and 10"):
-        simulate([Request(0, "a", 1, 2)], elevators=11, floors=5, capacity=1)
-    result = simulate([Request(0, "a", 1, 2)], elevators=11, floors=5, capacity=1, max_elevators=20)
+        simulate([Request(0, "a", 1, 2)], elevators=11, max_floor=5, capacity=1)
+    result = simulate([Request(0, "a", 1, 2)], elevators=11, max_floor=5, capacity=1, max_elevators=20)
     assert len(result.positions[0]) == 12
 
 
@@ -156,3 +161,53 @@ def test_cli_rejects_empty_input(tmp_path, capsys):
     empty.write_text("time,id,source,dest\n")
     assert main([str(empty), "--compare"]) == 2
     assert "no requests" in capsys.readouterr().err
+
+
+def test_there_is_no_floor_zero_between_one_and_minus_one():
+    # Going down from the ground floor reaches -1 in a single tick, not two.
+    result, people = run_basement([Request(0, "a", 1, -1)])
+    assert result.positions == [[0, 1], [1, -1]]
+    assert (people["a"].wait_time, people["a"].travel_time) == (0, 1)
+
+
+def test_ride_across_the_gap_between_basement_and_upper_floors():
+    # Car starts on floor 1. It goes down 1 -> -1 -> -2 (2 ticks), boards, then rides up
+    # -2 -> -1 -> 1 -> 2 (3 ticks). Floor 0 never appears.
+    result, people = run_basement([Request(0, "a", -2, 2)])
+    assert [row[1] for row in result.positions] == [1, -1, -2, -1, 1, 2]
+    assert (people["a"].wait_time, people["a"].travel_time) == (2, 3)
+
+
+def test_basement_does_not_change_the_default_building():
+    # Without min_floor the building still starts at floor 1 and rejects basements.
+    with pytest.raises(ValueError, match="between 1 and 10"):
+        run([Request(0, "a", -1, 2)])
+
+
+@pytest.mark.parametrize(
+    "request_, message",
+    [
+        (Request(0, "a", 0, 2), "no floor 0"),
+        (Request(0, "a", 1, -3), "between -2 and 5"),
+    ],
+)
+def test_basement_rejects_floor_zero_and_floors_below_the_bottom(request_, message):
+    with pytest.raises(ValueError, match=message):
+        run_basement([request_])
+
+
+@pytest.mark.parametrize("min_floor", [0, 2])
+def test_min_floor_must_be_the_ground_floor_or_a_basement(min_floor):
+    with pytest.raises(ValueError, match="min_floor"):
+        simulate([Request(0, "a", 1, 2)], elevators=1, max_floor=5, capacity=1, min_floor=min_floor)
+
+
+def test_cli_min_floor_flag(tmp_path, capsys):
+    requests = tmp_path / "basement.csv"
+    requests.write_text("time,id,source,dest\n0,a,-1,1\n")
+    positions = tmp_path / "positions.csv"
+    args = [str(requests), "--elevators", "1", "--max-floor", "3", "--positions", str(positions)]
+    assert main(args) == 2
+    assert "between 1 and 3" in capsys.readouterr().err
+    assert main(args + ["--min-floor", "-2"]) == 0
+    assert positions.read_text().splitlines()[1:3] == ["0,1", "1,-1"]

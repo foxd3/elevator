@@ -3,7 +3,7 @@ import statistics
 from collections import Counter, deque
 from dataclasses import dataclass
 
-from elevator_sim.models import Elevator, Passenger, Request
+from elevator_sim.models import GROUND_FLOOR, Elevator, Passenger, Request, floors_between
 from elevator_sim.scheduler import MAX_DRAIN_TICKS, LeastAddedTime
 
 MAX_ELEVATORS = 10  # the brief's example range; override per run with max_elevators
@@ -19,19 +19,22 @@ class SimulationResult:
 def simulate(
     requests: list[Request],
     elevators: int,
-    floors: int,
+    max_floor: int,
     capacity: int,
     scheduler=None,
     max_ticks: int = MAX_DRAIN_TICKS,  # same "stuck" guard the scheduler uses for its what-if runs
     max_elevators: int = MAX_ELEVATORS,
+    min_floor: int = GROUND_FLOOR,
 ) -> SimulationResult:
     if not 1 <= elevators <= max_elevators:
         raise ValueError(f"elevators must be between 1 and {max_elevators}")
-    if floors < 2 or capacity < 1:
+    if min_floor == 0 or min_floor > GROUND_FLOOR:
+        raise ValueError(f"min_floor must be {GROUND_FLOOR} or a negative floor (there is no floor 0)")
+    if max_floor < GROUND_FLOOR or floors_between(min_floor, max_floor) < 1 or capacity < 1:
         raise ValueError("need at least 2 floors and capacity of at least 1")
 
     scheduler = scheduler or LeastAddedTime()
-    cars = [Elevator(id=i, capacity=capacity) for i in range(1, elevators + 1)]
+    cars = [Elevator(id=i, capacity=capacity) for i in range(1, elevators + 1)]  # start on the ground floor
     # Arrival queue. Requests leave it only when their time comes, so nothing later is visible.
     arrivals = deque(sorted(requests, key=lambda r: r.time))
     passengers: list[Passenger] = []
@@ -45,7 +48,7 @@ def simulate(
 
         while arrivals and arrivals[0].time <= t:
             request = arrivals.popleft()
-            check_request(request, floors, seen_ids)
+            check_request(request, max_floor, seen_ids, min_floor)
             car = scheduler.assign(request, cars, t)
             passenger = Passenger(request.id, request.source, request.dest, request.time, car.id)
             car.pickups.append(passenger)
@@ -61,7 +64,9 @@ def simulate(
     return SimulationResult(positions, passengers, summarize(passengers))
 
 
-def check_request(request: Request, floors: int, seen_ids: set[str]) -> None:
+def check_request(
+    request: Request, max_floor: int, seen_ids: set[str], min_floor: int = GROUND_FLOOR
+) -> None:
     if request.id in seen_ids:
         raise ValueError(f"duplicate passenger id {request.id}")
     seen_ids.add(request.id)
@@ -69,8 +74,10 @@ def check_request(request: Request, floors: int, seen_ids: set[str]) -> None:
         raise ValueError(f"{request.id}: time must be >= 0")
     if request.source == request.dest:
         raise ValueError(f"{request.id}: source and dest are the same floor")
-    if not (1 <= request.source <= floors and 1 <= request.dest <= floors):
-        raise ValueError(f"{request.id}: floors must be between 1 and {floors}")
+    on_a_real_floor = all(min_floor <= f <= max_floor and f != 0 for f in (request.source, request.dest))
+    if not on_a_real_floor:
+        note = " (there is no floor 0)" if min_floor < 0 else ""
+        raise ValueError(f"{request.id}: floors must be between {min_floor} and {max_floor}{note}")
 
 
 def summarize(passengers: list[Passenger]) -> dict:

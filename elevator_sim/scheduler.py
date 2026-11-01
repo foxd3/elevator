@@ -1,4 +1,4 @@
-from elevator_sim.models import Elevator, Passenger, Request
+from elevator_sim.models import Elevator, Passenger, Request, floors_between
 
 # A scheduler is any object with:
 #     assign(request, elevators, now) -> Elevator
@@ -44,7 +44,7 @@ class NearestCar:
     """Baseline: the car physically closest to the pickup floor, ignoring direction and load."""
 
     def assign(self, request: Request, elevators: list[Elevator], now: int) -> Elevator:
-        return min(elevators, key=lambda car: (abs(car.floor - request.source), car.id))
+        return min(elevators, key=lambda car: (floors_between(car.floor, request.source), car.id))
 
 
 class RoundRobin:
