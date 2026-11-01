@@ -1,4 +1,5 @@
 import math
+import re
 import statistics
 from collections import Counter, deque
 from dataclasses import dataclass
@@ -25,6 +26,7 @@ def simulate(
     max_ticks: int = MAX_DRAIN_TICKS,  # same "stuck" guard the scheduler uses for its what-if runs
     max_elevators: int = MAX_ELEVATORS,
     min_floor: int = GROUND_FLOOR,
+    express: dict[int, frozenset[int]] | None = None,
 ) -> SimulationResult:
     if not 1 <= elevators <= max_elevators:
         raise ValueError(f"elevators must be between 1 and {max_elevators}")
@@ -34,7 +36,12 @@ def simulate(
         raise ValueError("need at least 2 floors and capacity of at least 1")
 
     scheduler = scheduler or LeastAddedTime()
-    cars = [Elevator(id=i, capacity=capacity) for i in range(1, elevators + 1)]  # start on the ground floor
+    served = express or {}
+    check_express(served, elevators, min_floor, max_floor)
+    cars = [
+        Elevator(id=i, capacity=capacity, stops=served.get(i))  # start on the ground floor
+        for i in range(1, elevators + 1)
+    ]
     # Arrival queue. Requests leave it only when their time comes, so nothing later is visible.
     arrivals = deque(sorted(requests, key=lambda r: r.time))
     passengers: list[Passenger] = []
@@ -62,6 +69,63 @@ def simulate(
         t += 1
 
     return SimulationResult(positions, passengers, summarize(passengers))
+
+
+def parse_express(spec: str) -> tuple[int, frozenset[int]]:
+    """Parse ``1=1,30-50`` into an elevator id and the floors that car stops at.
+
+    A token is one floor (``1``, ``-2``) or a range. Positive ranges use a hyphen (``30-50``).
+    Ranges that include a negative floor use ``..`` (``-2..2``). Floor 0 is never a stop.
+    """
+    if spec.count("=") != 1:
+        raise ValueError(f"express spec {spec!r} must look like 1=1,30-50")
+    car_text, floors_text = spec.split("=")
+    try:
+        car_id = int(car_text)
+    except ValueError as error:
+        raise ValueError(f"express spec {spec!r} must look like 1=1,30-50") from error
+    if not floors_text:
+        raise ValueError(f"elevator {car_id} stops at no floors")
+    stops: set[int] = set()
+    for token in floors_text.split(","):
+        token = token.strip()
+        if ".." in token:
+            ends = token.split("..")
+            if len(ends) != 2:
+                raise ValueError(f"bad floor range {token!r} in {spec!r}")
+            lo, hi = int(ends[0]), int(ends[1])
+        elif re.fullmatch(r"\d+-\d+", token):
+            lo_text, hi_text = token.split("-")
+            lo, hi = int(lo_text), int(hi_text)
+        elif re.fullmatch(r"-?\d+", token):
+            floor = int(token)
+            if floor == 0:
+                raise ValueError(f"{spec}: there is no floor 0")
+            stops.add(floor)
+            continue
+        else:
+            raise ValueError(f"bad floor {token!r} in {spec!r}")
+        if lo > hi:
+            lo, hi = hi, lo
+        stops.update(floor for floor in range(lo, hi + 1) if floor != 0)
+    if not stops:
+        raise ValueError(f"elevator {car_id} stops at no floors")
+    return car_id, frozenset(stops)
+
+
+def check_express(
+    express: dict[int, frozenset[int]], elevators: int, min_floor: int, max_floor: int
+) -> None:
+    for car_id, stops in express.items():
+        if not 1 <= car_id <= elevators:
+            raise ValueError(f"express car {car_id} is not one of the {elevators} elevators")
+        if not stops:
+            raise ValueError(f"elevator {car_id} stops at no floors")
+        outside = sorted(floor for floor in stops if floor < min_floor or floor > max_floor)
+        if outside:
+            raise ValueError(
+                f"elevator {car_id} stops at {outside[0]}, outside {min_floor} to {max_floor}"
+            )
 
 
 def check_request(

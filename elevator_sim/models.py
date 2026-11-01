@@ -72,10 +72,15 @@ class Elevator:
     direction: Direction = Direction.IDLE
     onboard: list[Passenger] = field(default_factory=list)
     pickups: list[Passenger] = field(default_factory=list)  # assigned, not yet boarded
+    stops: frozenset[int] | None = None  # None means every floor; an express car lists the floors it stops at
 
     @property
     def busy(self) -> bool:
         return bool(self.onboard or self.pickups)
+
+    def serves(self, floor: int) -> bool:
+        """True if this car stops at floor. An express car skips every floor not in stops."""
+        return self.stops is None or floor in self.stops
 
     def step(self, now: int) -> list[Passenger]:
         """Run one tick at the current floor. Returns the passengers who got off."""
@@ -103,7 +108,9 @@ class Elevator:
             return (floor - self.floor) * direction.value > 0
 
         return any(ahead(p.dest) for p in self.onboard) or any(
-            ahead(p.source) or (p.source == self.floor and p.direction is direction)
+            self.serves(p.source)
+            and self.serves(p.dest)
+            and (ahead(p.source) or (p.source == self.floor and p.direction is direction))
             for p in self.pickups
         )
 
@@ -120,6 +127,7 @@ class Elevator:
         for p in list(self.pickups):
             if (
                 p.source == self.floor
+                and self.serves(p.dest)
                 and p.direction is self.direction
                 and len(self.onboard) < self.capacity
             ):

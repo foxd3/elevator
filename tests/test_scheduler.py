@@ -31,6 +31,26 @@ def test_round_robin_cycles():
     assert picks == [1, 2, 3, 1]
 
 
+def test_schedulers_skip_an_express_car_that_cannot_stop_for_the_trip():
+    # Car 1 is closer to floor 3, but it only stops at 1 and 10, so it cannot take 3 -> 4.
+    express = Elevator(id=1, capacity=8, floor=2, stops=frozenset({1, 10}))
+    local = Elevator(id=2, capacity=8, floor=8)
+    request = Request(0, "p", 3, 4)
+    assert NearestCar().assign(request, [express, local], 0) is local
+    assert LeastAddedTime().assign(request, [express, local], 0) is local
+
+
+def test_round_robin_skips_express_cars_and_keeps_cycling():
+    cars = [
+        Elevator(id=1, capacity=8, stops=frozenset({1, 5})),
+        Elevator(id=2, capacity=8),
+        Elevator(id=3, capacity=8),
+    ]
+    scheduler = RoundRobin()
+    picks = [scheduler.assign(Request(0, str(i), 2, 3), cars, 0).id for i in range(4)]
+    assert picks == [2, 3, 2, 3]
+
+
 def test_nearest_car_counts_floors_without_a_floor_zero():
     # Floor 1 is one step from -1 and two steps from 3. A plain abs() would call both distance 2.
     far = Elevator(id=1, capacity=8, floor=3)

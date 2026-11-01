@@ -45,4 +45,4 @@ python3 -m elevator_sim scenarios/morning_rush.csv --compare
 
 ## Not in scope
 
-Express cars, door dwell time, and reassignment are deliberately not implemented. See "What I'd do with more time" in the README.
+Door dwell time and reassignment are deliberately not implemented. Express cars stop only at the floors in `Elevator.stops`; see the README. "What I'd do with more time" lists the rest.

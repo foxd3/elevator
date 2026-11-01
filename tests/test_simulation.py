@@ -7,7 +7,7 @@ from elevator_sim.__main__ import main
 from elevator_sim.io import read_requests
 from elevator_sim.models import Request
 from elevator_sim.scheduler import SCHEDULERS
-from elevator_sim.simulation import simulate
+from elevator_sim.simulation import parse_express, simulate
 
 SCENARIOS = Path(__file__).resolve().parents[1] / "scenarios"
 
@@ -211,3 +211,51 @@ def test_cli_min_floor_flag(tmp_path, capsys):
     assert "between 1 and 3" in capsys.readouterr().err
     assert main(args + ["--min-floor", "-2"]) == 0
     assert positions.read_text().splitlines()[1:3] == ["0,1", "1,-1"]
+
+
+def test_parse_express_spec():
+    assert parse_express("1=1,30-50") == (1, frozenset([1, *range(30, 51)]))
+    # A range through the ground floor skips 0, which is not a floor.
+    assert parse_express("2=-2..2")[1] == frozenset({-2, -1, 1, 2})
+
+
+def test_express_car_is_not_given_a_trip_it_cannot_stop_for():
+    # Car 1 stops only at 1 and 5. The trip to 3 has to take the local car.
+    requests = [Request(0, "mid", 1, 3), Request(0, "top", 1, 5)]
+    result = simulate(requests, elevators=2, max_floor=10, capacity=8, express={1: frozenset({1, 5})})
+    people = {p.id: p for p in result.passengers}
+    assert people["mid"].elevator_id == 2
+    assert people["top"].elevator_id == 1
+
+
+def test_express_car_still_travels_one_floor_per_tick():
+    # Skipping a floor means not stopping there. The car still takes one tick per floor.
+    result = simulate(
+        [Request(0, "a", 1, 5)], elevators=1, max_floor=10, capacity=8, express={1: frozenset({1, 5})}
+    )
+    assert [row[1] for row in result.positions] == [1, 2, 3, 4, 5]
+
+
+def test_trip_nobody_can_serve_is_rejected():
+    with pytest.raises(ValueError, match="no elevator serves"):
+        simulate(
+            [Request(0, "a", 2, 3)],
+            elevators=1,
+            max_floor=10,
+            capacity=8,
+            express={1: frozenset({1, 5})},
+        )
+
+
+def test_cli_express_flag(tmp_path, capsys):
+    trips = tmp_path / "trips.csv"
+    trips.write_text("time,id,source,dest\n0,mid,1,3\n0,top,1,5\n")
+    positions = tmp_path / "positions.csv"
+    args = [
+        str(trips), "--elevators", "2", "--max-floor", "10",
+        "--express", "1=1,5", "--positions", str(positions),
+    ]
+    assert main(args) == 0
+    assert "passengers_per_elevator: {1: 1, 2: 1}" in capsys.readouterr().out
+    assert main(args + ["--express", "9=1,5"]) == 2
+    assert "not one of" in capsys.readouterr().err

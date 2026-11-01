@@ -9,6 +9,16 @@ from elevator_sim.models import Elevator, Passenger, Request, floors_between
 MAX_DRAIN_TICKS = 100_000
 
 
+def eligible(request: Request, elevators: list[Elevator]) -> list[Elevator]:
+    """Cars that stop at both ends of this trip. An express car skips the floors it does not serve."""
+    cars = [car for car in elevators if car.serves(request.source) and car.serves(request.dest)]
+    if not cars:
+        raise ValueError(
+            f"{request.id}: no elevator serves both floor {request.source} and floor {request.dest}"
+        )
+    return cars
+
+
 def remaining_cost(car: Elevator, now: int) -> int:
     """Run a copy of the car until it is empty. Sum the ticks until each passenger gets off."""
     car = car.copy()
@@ -37,14 +47,15 @@ class LeastAddedTime:
             )
             return remaining_cost(with_request, now) - remaining_cost(car, now)
 
-        return min(elevators, key=lambda car: (added_time(car), car.id))
+        return min(eligible(request, elevators), key=lambda car: (added_time(car), car.id))
 
 
 class NearestCar:
     """Baseline: the car physically closest to the pickup floor, ignoring direction and load."""
 
     def assign(self, request: Request, elevators: list[Elevator], now: int) -> Elevator:
-        return min(elevators, key=lambda car: (floors_between(car.floor, request.source), car.id))
+        cars = eligible(request, elevators)
+        return min(cars, key=lambda car: (floors_between(car.floor, request.source), car.id))
 
 
 class RoundRobin:
@@ -54,9 +65,16 @@ class RoundRobin:
         self.next_index = 0
 
     def assign(self, request: Request, elevators: list[Elevator], now: int) -> Elevator:
-        car = elevators[self.next_index % len(elevators)]
-        self.next_index += 1
-        return car
+        count = len(elevators)
+        for offset in range(count):
+            index = (self.next_index + offset) % count
+            car = elevators[index]
+            if car.serves(request.source) and car.serves(request.dest):
+                self.next_index = index + 1
+                return car
+        raise ValueError(
+            f"{request.id}: no elevator serves both floor {request.source} and floor {request.dest}"
+        )
 
 
 SCHEDULERS = {

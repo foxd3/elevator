@@ -4,7 +4,7 @@ import sys
 from elevator_sim.io import format_summary, read_requests, write_positions
 from elevator_sim.models import GROUND_FLOOR
 from elevator_sim.scheduler import SCHEDULERS
-from elevator_sim.simulation import MAX_ELEVATORS, simulate
+from elevator_sim.simulation import MAX_ELEVATORS, parse_express, simulate
 
 COMPARE_COLUMNS = ["wait_avg", "wait_max", "total_avg", "total_median", "total_p95", "total_max"]
 
@@ -20,6 +20,13 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--capacity", type=int, default=8)
     parser.add_argument("--scheduler", choices=SCHEDULERS, default="least_added_time")
+    parser.add_argument(
+        "--express",
+        action="append",
+        default=[],
+        metavar="CAR=FLOORS",
+        help="floors this car stops at, for example 1=1,30-50. Repeat for each express car",
+    )
     parser.add_argument("--positions", default="positions.csv", help="where to write the position log")
     parser.add_argument("--compare", action="store_true", help="run every scheduler and print a table")
     args = parser.parse_args(argv)
@@ -27,13 +34,19 @@ def main(argv: list[str] | None = None) -> int:
     def run(scheduler):
         return simulate(
             requests, args.elevators, args.max_floor, args.capacity, scheduler,
-            max_elevators=args.max_elevators, min_floor=args.min_floor,
+            max_elevators=args.max_elevators, min_floor=args.min_floor, express=express or None,
         )
 
     try:
         requests = read_requests(args.input)
         if not requests:
             raise ValueError(f"no requests in {args.input}")
+        express: dict[int, frozenset[int]] = {}
+        for spec in args.express:
+            car_id, stops = parse_express(spec)
+            if car_id in express:
+                raise ValueError(f"elevator {car_id} listed twice in --express")
+            express[car_id] = stops
         if args.compare:
             print(f"{'scheduler':<18}" + "".join(f"{c:>14}" for c in COMPARE_COLUMNS))
             for name, scheduler_class in SCHEDULERS.items():

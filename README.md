@@ -13,6 +13,9 @@ python3 -m elevator_sim scenarios/sample.csv --elevators 2 --max-floor 51 --capa
 # A 300-passenger morning rush, comparing all three schedulers
 python3 -m elevator_sim scenarios/morning_rush.csv --elevators 3 --compare
 
+# Car 1 stops only at the lobby and floors 30 to 50
+python3 -m elevator_sim scenarios/morning_rush.csv --elevators 3 --express 1=1,30-50
+
 # Tests (pytest is the only extra dependency)
 python3 -m pip install pytest
 python3 -m pytest
@@ -28,6 +31,7 @@ python3 -m pytest
 | `--scheduler` | `least_added_time` | Also `nearest` or `round_robin` |
 | `--positions` | `positions.csv` | Where the position log is written |
 | `--compare` | off | Run every scheduler and print a table |
+| `--express` | none | Floors one car stops at, for example `1=1,30-50`. Repeat for each express car. Other cars stop everywhere |
 
 The position log has one row per tick, starting at 0: `time,elevator_1,elevator_2,...`. The summary prints min, max, and average wait and total time. It also prints the median and 95th-percentile total time, how many passengers waited 0, the passenger who waited longest, and how many passengers each car carried.
 
@@ -102,6 +106,7 @@ What this shows:
 - Three cars are overloaded for this demand. Waits grow throughout the run. Doubling to six cars cuts the average wait by about 80%.
 - `nearest` does worst. It sends cars to passengers going the other way, and they then wait a whole sweep.
 - Minimizing *total* added time also gave the best *worst-case* wait here. That isn't guaranteed: the objective is efficiency, not fairness.
+- Reserving car 1 for floors 1 and 30 to 50 (`--express 1=1,30-50`) cuts this run's average wait from 78.7 to 71.7 and the maximum from 229 to 184. The car is not faster. It still takes one tick per floor. It helps because it stops being sent on trips through the middle of the building, and it carries 62 of the 300 passengers instead of about a third.
 
 ## Assumptions and simplifications
 
@@ -112,7 +117,7 @@ What this shows:
 - Requests on the same tick are assigned in file order.
 - Assignment is final, as the brief requires. A car won't hand a passenger to another car even if things change.
 - Invalid requests are rejected with an error: unknown floor, same origin and destination, negative time, or duplicate id. The CLI also rejects an input file with no requests. Each request is checked when it arrives, so validation never looks ahead.
-- All cars serve every floor. There are no express cars or zones.
+- By default every car stops at every floor. `--express 1=1,30-50` (or `express=` in `simulate`) makes car 1 stop only at those floors and skip the rest. It still moves one floor per tick, because that is the brief's clock, so skipping a floor does not make it faster. The scheduler will not give it a trip unless it stops at both ends. A trip that no car can serve is rejected. A transfer, getting out and changing cars, would be a second assignment, which the brief forbids.
 - The elevator count defaults to a limit of 10, matching the brief's example range. Pass `max_elevators=` to `simulate`, or `--max-elevators` on the CLI, to allow more. The limit is only a sanity check; nothing else depends on it.
 
 ## Trade-offs
@@ -124,7 +129,6 @@ What this shows:
 ## What I'd do with more time
 
 - Realistic stop cost: a fixed door time per stop, plus a per-passenger load and unload time, so that a crowded stop takes longer than an empty one. It would go in `Elevator.step` and `move`, and the scheduler would account for it automatically because `remaining_cost` reuses `step`. This is the biggest gap between the model and a real elevator, and it would make grouping by destination valuable, which is the point of destination dispatch.
-- Express or zoned cars. An `Elevator.serves(floor)` check would gate `board`, `has_stop`, and the scheduler.
 - A fairness knob in the cost function, and a sweep showing the trade-off between average and maximum wait.
 - An animated plot of `positions.csv` for the walkthrough.
 
