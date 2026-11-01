@@ -110,6 +110,7 @@ What this shows:
 - One tick is one floor of travel, as the brief defines it. The brief says nothing about time spent at a stop, so I treat stops as free: doors open and close instantly, and every passenger who can get off or on does so on the same tick, however many there are. This is a large simplification of real elevators, where each stop costs time (doors, plus people walking in and out) and a busy stop costs more than a quiet one. See the trade-offs below.
 - Wait is `board_time - request_time`. Travel is `alight_time - board_time`. Total time is wait plus travel. Someone picked up on the tick they asked has a wait of 0.
 - Requests on the same tick are assigned in file order.
+- One request is one passenger, and riders behave as declared: everyone submits their own request, boards the car they were assigned, and gets off at their stated floor. Capacity counts requests, so two people travelling together on one request would exceed the real car capacity without the model noticing. Real systems guard against this by weighing the car and by asking for a party size.
 - Assignment is final, as the brief requires. A car won't hand a passenger to another car even if things change.
 - Invalid requests are rejected with an error: unknown floor, same origin and destination, negative time, or duplicate id. The CLI also rejects an input file with no requests. Each request is checked when it arrives, so validation never looks ahead.
 - All cars serve every floor. There are no express cars or zones.
@@ -125,6 +126,7 @@ What this shows:
 
 - Realistic stop cost: a fixed door time per stop, plus a per-passenger load and unload time, so that a crowded stop takes longer than an empty one. It would go in `Elevator.step` and `move`, and the scheduler would account for it automatically because `remaining_cost` reuses `step`. This is the biggest gap between the model and a real elevator, and it would make grouping by destination valuable, which is the point of destination dispatch.
 - Express or zoned cars. An `Elevator.serves(floor)` check would gate `board`, `has_stop`, and the scheduler.
+- A `party_size` on each request, so capacity counts people instead of requests, and a no-show or wrong-car rider to show how the model fails.
 - A fairness knob in the cost function, and a sweep showing the trade-off between average and maximum wait.
 - An animated plot of `positions.csv` for the walkthrough.
 
