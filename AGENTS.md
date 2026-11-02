@@ -5,9 +5,9 @@ Discrete-time destination-dispatch elevator simulation. Standard library only. R
 ## Commands
 
 ```bash
-python3 -m pip install pytest ruff                      # one-time setup
-python3 -m pytest                                       # tests, must pass
-ruff check .                                            # lint, must pass
+poetry install                                          # one-time setup: .venv with pytest and ruff
+poetry run pytest                                       # tests, must pass
+poetry run ruff check .                                 # lint, must pass
 python3 -m elevator_sim scenarios/sample.csv --elevators 2
 python3 -m elevator_sim scenarios/morning_rush.csv --compare
 ```
@@ -31,7 +31,7 @@ python3 -m elevator_sim scenarios/morning_rush.csv --compare
 
 ## Conventions
 
-- Python 3.10+, type hints on public functions, no third-party runtime dependencies.
+- Python 3.10+, type hints on public functions, no third-party runtime dependencies. Dev tools (`pytest`, `ruff`) are Poetry dev dependencies: add them with `poetry add --group dev`, and commit `poetry.lock`.
 - Keep magic numbers named (for example `MAX_DRAIN_TICKS`, `MAX_ELEVATORS`).
 - Invalid input raises `ValueError`. The CLI reports it on stderr and exits 2.
 - A behavior change needs a test, and a README update if it changes assumptions or the results table.

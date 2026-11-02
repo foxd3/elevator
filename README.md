@@ -4,7 +4,16 @@ A discrete-time simulation of a destination-dispatch elevator bank. Each passeng
 
 ## How to run
 
-Python 3.10 or newer. The simulation uses only the standard library. Tests need `pytest`.
+Python 3.10 or newer. The simulation uses only the standard library. Dependencies for development (`pytest` and `ruff`) are managed with [Poetry](https://python-poetry.org/).
+
+```bash
+poetry install            # creates .venv and installs pytest and ruff from poetry.lock
+poetry run pytest         # tests
+poetry run ruff check .   # lint
+poetry run elevator-sim scenarios/sample.csv --elevators 2   # same as python3 -m elevator_sim
+```
+
+Without Poetry, `python3 -m elevator_sim ...` still works from the repo root, because the simulation needs nothing installed. The examples below use that form.
 
 ```bash
 # The sample from the brief
@@ -13,8 +22,7 @@ python3 -m elevator_sim scenarios/sample.csv --elevators 2 --max-floor 51 --capa
 # A 300-passenger morning rush, comparing all three schedulers
 python3 -m elevator_sim scenarios/morning_rush.csv --elevators 3 --compare
 
-# Tests (pytest is the only extra dependency)
-python3 -m pip install pytest
+# Tests
 python3 -m pytest
 ```
 

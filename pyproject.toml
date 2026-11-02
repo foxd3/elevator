@@ -1,7 +1,23 @@
 [project]
 name = "elevator-sim"
 version = "0.1.0"
+description = "Discrete-time destination-dispatch elevator simulation"
 requires-python = ">=3.10"
+dependencies = []  # standard library only at runtime
+
+[project.scripts]
+elevator-sim = "elevator_sim.__main__:main"
+
+[tool.poetry]
+packages = [{ include = "elevator_sim" }]
+
+[tool.poetry.group.dev.dependencies]
+pytest = ">=8"
+ruff = ">=0.6"
+
+[build-system]
+requires = ["poetry-core>=2.0"]
+build-backend = "poetry.core.masonry.api"
 
 [tool.ruff]
 line-length = 110
